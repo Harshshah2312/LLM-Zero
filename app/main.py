@@ -1,4 +1,5 @@
 import os
+import json
 import ctypes
 import boto3
 import llama_cpp
@@ -10,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 llm = None
@@ -95,27 +97,58 @@ app = FastAPI()
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
-class InferenceRequest(BaseModel):
-    prompt: str
+class Message(BaseModel):
+    role: str
+    content: str
+class ChatCompletionRequest(BaseModel):
+    model: Optional[str] = os.environ['MODEL_KEY']
+    messages: list[Message]
     max_tokens: Optional[int] = 256
     temperature: Optional[float] = 0.1
-    stop: Optional[list] = ["assistant", "user", "<|im_end|>"]
-    echo: Optional[bool] = False
-@app.post("/generate")
-def handle_inference(request: InferenceRequest):
-    async def llm_stream(request: InferenceRequest):
-        system_prompt = "You are a knowledgable and helpful assistant"
-        prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{request.prompt}<|im_end|>\n<|im_start|>assistant\n"
-        response = llm.create_completion(
-            prompt=prompt,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            stop=request.stop,
-            echo=request.echo,
-            stream=True
-        )
+    stream: bool = True  # Always true, streaming only
+@app.post("/v1/chat/completions")
+async def handle_chat_completion(request: ChatCompletionRequest):
+    prompt_parts = [
+        f"<|im_start|>{msg.role}\n{msg.content}<|im_end|>\n"
+        for msg in request.messages
+    ]
+    prompt_parts.append("<|im_start|>assistant\n")
+    prompt = "".join(prompt_parts)
+    response = llm.create_completion(
+        prompt=prompt,
+        max_tokens=request.max_tokens,
+        temperature=request.temperature,
+        stop=["<|im_end|>"],
+        stream=True
+    )
+    async def generate():
         for chunk in response:
             completion = chunk['choices'][0]
             if completion['finish_reason'] is None:
-                yield completion['text']
-    return StreamingResponse(llm_stream(request), media_type="text/plain")
+                chunk_data = {
+                    "id": "chatcmpl-" + datetime.now().strftime("%Y%m%d%H%M%S"),
+                    "object": "chat.completion.chunk",
+                    "created": int(datetime.now().timestamp()),
+                    "model": request.model,
+                    "choices": [{
+                        "delta": {"content": completion['text']},
+                        "index": 0,
+                        "finish_reason": None
+                    }]
+                }
+                yield f"data: {json.dumps(chunk_data, ensure_ascii=False)}\n\n"
+            else:
+                final_chunk = {
+                    "id": "chatcmpl-" + datetime.now().strftime("%Y%m%d%H%M%S"),
+                    "object": "chat.completion.chunk",
+                    "created": int(datetime.now().timestamp()),
+                    "model": request.model,
+                    "choices": [{
+                        "delta": {},
+                        "index": 0,
+                        "finish_reason": completion['finish_reason']
+                    }]
+                }
+                yield f"data: {json.dumps(final_chunk, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+    return StreamingResponse(generate(), media_type="text/event-stream")
