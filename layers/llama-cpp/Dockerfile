@@ -12,7 +12,7 @@ RUN git clone https://github.com/abetlen/llama-cpp-python.git && \
     git checkout v0.3.2 && \
     git submodule update --init --recursive
 WORKDIR /build/llama-cpp-python
-ENV CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS -DLLAMA_AVX2=ON -DLLAMA_AVX512=OFF"
+ENV CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS -DGGML_NATIVE=OFF -DGGML_LTO=ON -DGGML_AVX2=ON -DGGML_AVX512=OFF"
 ENV LLAMA_BLAS=1
 ENV LLAMA_OPENBLAS=1
 ENV LLAMA_METAL=0

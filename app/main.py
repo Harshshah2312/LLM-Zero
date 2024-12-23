@@ -5,6 +5,7 @@ import boto3
 import llama_cpp
 import logging
 import multiprocessing
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from fastapi import FastAPI
@@ -108,6 +109,8 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = True  # Always true, streaming only
 @app.post("/v1/chat/completions")
 async def handle_chat_completion(request: ChatCompletionRequest):
+    completion_id = f"chatcmpl-{str(uuid.uuid4())}"
+    created_timestamp = int(datetime.now().timestamp())
     prompt_parts = [
         f"<|im_start|>{msg.role}\n{msg.content}<|im_end|>\n"
         for msg in request.messages
@@ -126,9 +129,9 @@ async def handle_chat_completion(request: ChatCompletionRequest):
             completion = chunk['choices'][0]
             if completion['finish_reason'] is None:
                 chunk_data = {
-                    "id": "chatcmpl-" + datetime.now().strftime("%Y%m%d%H%M%S"),
+                    "id": completion_id,
                     "object": "chat.completion.chunk",
-                    "created": int(datetime.now().timestamp()),
+                    "created": created_timestamp,
                     "model": request.model,
                     "choices": [{
                         "delta": {"content": completion['text']},
@@ -139,9 +142,9 @@ async def handle_chat_completion(request: ChatCompletionRequest):
                 yield f"data: {json.dumps(chunk_data, ensure_ascii=False)}\n\n"
             else:
                 final_chunk = {
-                    "id": "chatcmpl-" + datetime.now().strftime("%Y%m%d%H%M%S"),
+                    "id": completion_id,
                     "object": "chat.completion.chunk",
-                    "created": int(datetime.now().timestamp()),
+                    "created": created_timestamp,
                     "model": request.model,
                     "choices": [{
                         "delta": {},
