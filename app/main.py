@@ -15,11 +15,18 @@ from typing import Optional
 from datetime import datetime
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-llm = None
-model_fd = None
+llm = None  # The LLM instance that will be reused across requests
+model_fd = None  # File descriptor for the model file
 def create_memfd():
+    """Create a memory file descriptor using the memfd_create syscall.
+    This allows us to create a file that exists only in memory, not on disk.
+    Returns:
+        int: File descriptor for the memory file
+    Raises:
+        OSError: If memfd_create fails
+    """
     libc = ctypes.CDLL("libc.so.6", use_errno=True)
-    MFD_CLOEXEC = 1
+    MFD_CLOEXEC = 1  # Close the fd when executing a new program
     memfd_create = libc.memfd_create
     memfd_create.argtypes = [ctypes.c_char_p, ctypes.c_uint]
     memfd_create.restype = ctypes.c_int
@@ -29,6 +36,14 @@ def create_memfd():
         raise OSError(errno, f"memfd_create failed: {os.strerror(errno)}")
     return fd
 def download_part(s3_client, bucket, key, fd, part):
+    """Download a specific byte range of a file from S3 to a file descriptor.
+    Args:
+        s3_client: Boto3 S3 client
+        bucket (str): S3 bucket name
+        key (str): S3 object key
+        fd (int): File descriptor to write to
+        part (dict): Dictionary with 'start' and 'end' byte positions
+    """
     start_byte = part['start']
     end_byte = part['end']
     response = s3_client.get_object(
@@ -40,6 +55,20 @@ def download_part(s3_client, bucket, key, fd, part):
     os.lseek(fd, start_byte, os.SEEK_SET)
     os.write(fd, data)
 def download_model_to_memfd(bucket, key, chunk_size=100*1024*1024):  # 100MB chunks
+    """Download a model file from S3 to a memory file descriptor in parallel chunks.
+    This function:
+    1. Gets the file size from S3
+    2. Creates a memory file descriptor
+    3. Pre-allocates the full file size
+    4. Splits the download into chunks
+    5. Downloads chunks in parallel
+    Args:
+        bucket (str): S3 bucket name
+        key (str): S3 object key
+        chunk_size (int): Size of each download chunk in bytes
+    Returns:
+        tuple: (file descriptor, file path)
+    """
     s3 = boto3.client('s3')
     response = s3.head_object(Bucket=bucket, Key=key)
     file_size = response['ContentLength']
@@ -56,7 +85,10 @@ def download_model_to_memfd(bucket, key, chunk_size=100*1024*1024):  # 100MB chu
     fd_path = f"/proc/self/fd/{fd}"
     return fd, fd_path
 def cleanup_fd(fd):
-    """Safely close the file descriptor"""
+    """Safely close the file descriptor.
+    Args:
+        fd (int): File descriptor to close
+    """
     try:
         if fd is not None:
             os.close(fd)
@@ -64,6 +96,13 @@ def cleanup_fd(fd):
     except OSError as e:
         logger.info(f"Error closing file descriptor: {e}")
 def init_model():
+    """Initialize the LLM model during Lambda cold start.
+    This function:
+    1. Downloads the model from S3 to a memory file descriptor
+    2. Initializes the LLM with the model
+    3. Primes the model with a simple query to reduce latency for the first request
+    4. Cleans up the file descriptor (llama-cpp-python loads the entire model into memory)
+    """
     global llm, model_fd
     bucket = os.environ['MODEL_BUCKET']
     key = os.environ['MODEL_KEY']
@@ -75,9 +114,9 @@ def init_model():
         logger.info("Initializing LLM...")
         llm = llama_cpp.Llama(
             model_path=fd_path,
-            n_ctx=8*1024,
-            n_threads=multiprocessing.cpu_count(),
-            flash_attn=True,
+            n_ctx=8*1024,  # 8K context window
+            n_threads=multiprocessing.cpu_count(),  # Use all available CPU cores
+            flash_attn=True,  # Enable flash attention for better performance
             verbose=True,
         )
         logger.info("LLM initialization complete")
@@ -96,25 +135,52 @@ init_model()
 app = FastAPI()
 @app.get("/healthz")
 def healthz():
+    """Health check endpoint for AWS Lambda Web Adapter.
+    Returns:
+        dict: Status message
+    """
     return {"status": "ok"}
 class Message(BaseModel):
+    """Message model for chat completion requests.
+    Attributes:
+        role (str): The role of the message sender (e.g., "user", "assistant")
+        content (str): The content of the message
+    """
     role: str
     content: str
 class ChatCompletionRequest(BaseModel):
+    """Request model for chat completion API.
+    Attributes:
+        model (str): The model to use for completion
+        messages (list[Message]): The conversation history
+        max_tokens (int): Maximum number of tokens to generate
+        temperature (float): Sampling temperature (0.0 to 1.0)
+        stream (bool): Whether to stream the response
+    """
     model: Optional[str] = os.environ['MODEL_KEY']
     messages: list[Message]
-    max_tokens: Optional[int] = 256
-    temperature: Optional[float] = 0.1
+    max_tokens: Optional[int] = 1024
+    temperature: Optional[float] = 0.6
     stream: bool = True  # Always true, streaming only
 @app.post("/v1/chat/completions")
 async def handle_chat_completion(request: ChatCompletionRequest):
+    """Handle chat completion requests in OpenAI-compatible format.
+    This endpoint:
+    1. Formats the conversation history into a prompt for the LLM
+    2. Generates a completion using the LLM
+    3. Streams the response back to the client in OpenAI-compatible format
+    Args:
+        request (ChatCompletionRequest): The chat completion request
+    Returns:
+        StreamingResponse: Server-sent events stream with completion chunks
+    """
     completion_id = f"chatcmpl-{str(uuid.uuid4())}"
     created_timestamp = int(datetime.now().timestamp())
     prompt_parts = [
         f"<|{msg.role}|>{msg.content}"
         for msg in request.messages
     ]
-    prompt_parts.append("<|Assistant|>")
+    prompt_parts.append("<|Assistant|>")  # Add the assistant prefix for the response
     prompt = "".join(prompt_parts)
     response = llm.create_completion(
         prompt=prompt,
@@ -124,6 +190,12 @@ async def handle_chat_completion(request: ChatCompletionRequest):
         stream=True
     )
     async def generate():
+        """Generate streaming response chunks in OpenAI-compatible format.
+        This is an async generator that:
+        1. Iterates through the LLM response chunks
+        2. Formats each chunk in OpenAI-compatible format
+        3. Yields the formatted chunks as server-sent events
+        """
         for chunk in response:
             completion = chunk['choices'][0]
             if completion['finish_reason'] is None:
