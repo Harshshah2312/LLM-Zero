@@ -201,7 +201,7 @@ def main():
         except FileNotFoundError:
             pass
         def get_input():
-            user_input = input("\n> ")
+            user_input = input("\n➤ ")  # Unicode right-pointing triangle
             return user_input.strip()
         while True:
             user_input = get_input()
