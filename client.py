@@ -20,7 +20,7 @@ class ThinkingIndicator:
         self._thread = None
     def start(self):
         """Start the thinking animation in a separate thread."""
-        print("\nAssistant: ", end='', flush=True)
+        print("\n", end='', flush=True)
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._animate)
         self._thread.daemon = True
@@ -30,15 +30,14 @@ class ThinkingIndicator:
         if self._thread:
             self._stop_event.set()
             self._thread.join()
-            print("\r\033[K", end='')
-            print("Assistant: ", end='', flush=True)
+            print("\r\033[K", end='', flush=True)
     def _animate(self):
         """Animation loop for the thinking indicator."""
         while not self._stop_event.is_set():
             for frame in ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]:
                 if self._stop_event.is_set():
                     break
-                print(f"\r\033[KThinking {frame}", end='', flush=True)
+                print(f"\r\033[K{frame} Thinking...", end='', flush=True)
                 time.sleep(0.1)
 class ChatClient:
     """Client for interacting with the serverless LLM API."""
@@ -72,9 +71,7 @@ class ChatClient:
         self.new_conversation()
     def new_conversation(self):
         """Start a new conversation by resetting the message history."""
-        self.messages = [
-            {"role": "system", "content": "You are a helpful assistant"}
-        ]
+        self.messages = []
     def _sign_request(self, url: str, method: str, body: Optional[Dict]) -> requests.PreparedRequest:
         """Sign an HTTP request with AWS SigV4 authentication.
         Args:
@@ -123,8 +120,8 @@ class ChatClient:
             self.thinking.start()
             response = self.session.send(prepared_request, stream=True)
             response.raise_for_status()
-            self.thinking.stop()
             assistant_message = ""
+            first_chunk = True
             for line in response.iter_lines():
                 if line:
                     line = line.decode('utf-8')
@@ -137,6 +134,10 @@ class ChatClient:
                                 choice = json_data['choices'][0]
                                 if 'delta' in choice and 'content' in choice['delta']:
                                     content = choice['delta']['content']
+                                    if first_chunk:
+                                        self.thinking.stop()
+                                        print("<think>", flush=True)
+                                        first_chunk = False
                                     print(content, end='', flush=True)
                                     assistant_message += content
                         except json.JSONDecodeError:
@@ -165,7 +166,7 @@ def get_api_base() -> str:
     parser.add_argument('--api-base', help='API base URL')
     parser.add_argument('--temperature', type=float, default=0.6,
                        help='Sampling temperature (0.0-1.0)')
-    parser.add_argument('--max-tokens', type=int, default=512,
+    parser.add_argument('--max-tokens', type=int, default=8192,
                        help='Maximum tokens to generate')
     args = parser.parse_args()
     if args.api_base:
@@ -199,8 +200,11 @@ def main():
             readline.set_history_length(1000)
         except FileNotFoundError:
             pass
+        def get_input():
+            user_input = input("\n> ")
+            return user_input.strip()
         while True:
-            user_input = input("\nYou: ").strip()
+            user_input = get_input()
             readline.write_history_file(histfile)
             if user_input == '/quit':
                 print("\nChat ended. Goodbye!")

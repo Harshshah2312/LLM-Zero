@@ -14,7 +14,6 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 llm = None  # The LLM instance that will be reused across requests
 model_fd = None  # File descriptor for the model file
 def create_memfd():
@@ -180,7 +179,7 @@ async def handle_chat_completion(request: ChatCompletionRequest):
         f"<|{msg.role}|>{msg.content}"
         for msg in request.messages
     ]
-    prompt_parts.append("<|Assistant|>")  # Add the assistant prefix for the response
+    prompt_parts.append("<|Assistant|>\n<think>\n")  # Add the assistant prefix for the response, and force thinking with '<think>' tag
     prompt = "".join(prompt_parts)
     response = llm.create_completion(
         prompt=prompt,
