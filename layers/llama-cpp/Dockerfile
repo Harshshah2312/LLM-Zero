@@ -9,7 +9,7 @@ RUN dnf install -y \
 WORKDIR /build
 RUN git clone https://github.com/abetlen/llama-cpp-python.git && \
     cd llama-cpp-python && \
-    git checkout v0.3.2 && \
+    git checkout v0.3.7 && \
     git submodule update --init --recursive
 WORKDIR /build/llama-cpp-python
 ENV CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS -DGGML_NATIVE=OFF -DGGML_LTO=ON -DGGML_AVX2=ON -DGGML_AVX512=OFF"
