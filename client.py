@@ -158,6 +158,7 @@ class ChatClient:
                                     content = choice['delta']['content']
                                     if first_chunk:
                                         self.thinking.stop()
+                                        print("<think>", flush=True)
                                         first_chunk = False
                                     print(content, end='', flush=True)
                                     assistant_message += content
