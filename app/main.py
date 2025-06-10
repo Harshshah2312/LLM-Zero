@@ -72,7 +72,12 @@ def download_model_to_memfd(bucket, key, chunk_size=100*1024*1024):  # 100MB chu
     response = s3.head_object(Bucket=bucket, Key=key)
     file_size = response['ContentLength']
     fd = create_memfd()
-    os.ftruncate(fd, file_size)
+    try:
+        os.ftruncate(fd, file_size)
+    except OSError as e:
+        logger.error(f"Failed to allocate {file_size/1024/1024:.2f}MB in memory: {e}")
+        cleanup_fd(fd)
+        raise RuntimeError(f"Not enough memory to load model of size {file_size/1024/1024:.2f}MB")
     parts = []
     for start in range(0, file_size, chunk_size):
         end = min(start + chunk_size - 1, file_size - 1)
